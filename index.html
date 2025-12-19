@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="UTF-8">
+<title>Hesteløp – Oddsberegner</title>
+
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        background: #f5f5f5;
+        padding: 20px;
+    }
+
+    h1 {
+        text-align: center;
+    }
+
+    .info {
+        max-width: 950px;
+        margin: 10px auto 20px auto;
+        background: white;
+        padding: 12px;
+        border-radius: 6px;
+        text-align: center;
+        box-shadow: 0 0 6px rgba(0,0,0,0.08);
+    }
+
+    .warning {
+        max-width: 950px;
+        margin: 10px auto;
+        padding: 10px;
+        background: #fff3cd;
+        border: 1px solid #ffeeba;
+        border-radius: 6px;
+        color: #856404;
+        display: none;
+        text-align: center;
+        font-size: 0.9em;
+    }
+
+    .grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+        max-width: 950px;
+        margin: auto;
+    }
+
+    .horse {
+        background: white;
+        padding: 10px;
+        border-radius: 6px;
+        box-shadow: 0 0 6px rgba(0,0,0,0.1);
+    }
+
+    input {
+        width: 100%;
+        padding: 6px;
+        margin-top: 6px;
+    }
+
+    .summary {
+        max-width: 950px;
+        margin: 20px auto;
+        background: white;
+        padding: 10px;
+        border-radius: 6px;
+        text-align: center;
+        font-weight: bold;
+    }
+
+    .buttons {
+        text-align: center;
+        margin: 20px 0;
+    }
+
+    button {
+        padding: 10px 20px;
+        font-size: 1em;
+        margin: 0 10px;
+        cursor: pointer;
+    }
+
+    button:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+    }
+
+    /* Status-prikker */
+    .status {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        margin-left: 6px;
+    }
+
+    .green { background: #2ecc71; }
+    .yellow { background: #f1c40f; }
+    .red { background: #e74c3c; }
+
+    /* Resultatliste */
+    .results {
+        max-width: 950px;
+        margin: 20px auto;
+        background: white;
+        padding: 10px;
+        border-radius: 6px;
+    }
+
+    .result-row {
+        padding: 6px 0;
+        border-bottom: 1px solid #eee;
+    }
+</style>
+</head>
+
+<body>
+
+<h1>Hesteløp – Oddsberegner</h1>
+
+<div class="info">
+    Skriv inn din vurdering av vinnersjanse for hver hest i prosent.
+</div>
+
+<div class="warning" id="warningBox"></div>
+
+<div class="grid" id="horses"></div>
+
+<div class="summary" id="summary">Sum: 0 %</div>
+
+<div class="buttons">
+    <button id="submitBtn" onclick="submitOdds()" disabled>Send inn</button>
+    <button onclick="resetAll()">Tilbakestill</button>
+</div>
+
+<div class="results" id="finalResults"></div>
+
+<script>
+const MARGIN = 0.83;
+const EXTREME_THRESHOLD = 80;
+
+const horses = [
+    { name: "Maserati Hall", driver: "R. Bakker", status: "yellow" },
+    { name: "Klinger (NOR)", driver: "N. Bazire", status: "red" },
+    { name: "Powwow", driver: "G. Gelormini", status: "yellow" },
+    { name: "Charron", driver: "Theo Duvaldestin", status: "yellow" },
+    { name: "Icebreaker (DEN)", driver: "F. Ouvrie", status: "green" },
+    { name: "Jazzman (GER)", driver: "A. Abrivard", status: "yellow" },
+    { name: "Kamehameha", driver: "A. Lherete", status: "yellow" },
+    { name: "Kanto Avis", driver: "B. Rochard", status: "green" },
+    { name: "Ksar", driver: "M. Abrivard", status: "yellow" },
+    { name: "King Opera", driver: "W. Bigeon", status: "green" },
+    { name: "Immortal Doc", driver: "J.M. Bazire", status: "green" },
+    { name: "Epic Kronos", driver: "P.PH. Ploquin", status: "yellow" },
+    { name: "Crown (USA)", driver: "F. Lagadeuc", status: "yellow" },
+    { name: "Executiv Ek", driver: "A. Gocciadoro", status: "yellow" },
+    { name: "Keep Going", driver: "M. Mottier", status: "yellow" },
+    { name: "Krack Time Atout", driver: "F. Nivard", status: "green" },
+    { name: "Fame And Glory (SE)", driver: "B. Goop", status: "green" },
+    { name: "Koctel Du Dain", driver: "D. Thomain", status: "green" }
+];
+
+const container = document.getElementById("horses");
+const summary = document.getElementById("summary");
+const finalResults = document.getElementById("finalResults");
+const submitBtn = document.getElementById("submitBtn");
+const warningBox = document.getElementById("warningBox");
+
+horses.forEach((horse, i) => {
+    const div = document.createElement("div");
+    div.className = "horse";
+    div.innerHTML = `
+        <strong>
+            ${i + 1}. ${horse.name}
+            <span class="status ${horse.status}"></span>
+        </strong><br>
+        <small>Kusk: ${horse.driver}</small>
+        <input type="number" min="0" max="1000" value="0">
+    `;
+    container.appendChild(div);
+});
+
+const inputs = document.querySelectorAll("input");
+
+inputs.forEach(input => {
+    input.addEventListener("input", updateState);
+});
+
+function updateState() {
+    const values = Array.from(inputs).map(i => Number(i.value) || 0);
+    const sum = values.reduce((a, b) => a + b, 0);
+
+    summary.textContent = `Sum: ${sum.toFixed(1)} %`;
+    submitBtn.disabled = sum === 0;
+
+    const extremeIndex = values.findIndex(v => v >= EXTREME_THRESHOLD);
+    if (extremeIndex !== -1) {
+        warningBox.style.display = "block";
+        warningBox.textContent =
+            `Advarsel: ${horses[extremeIndex].name} er satt til ${values[extremeIndex]} %. ` +
+            `Dette er uvanlig høyt i et felt med 18 hester.`;
+    } else {
+        warningBox.style.display = "none";
+    }
+}
+
+function submitOdds() {
+    const values = Array.from(inputs).map(i => Number(i.value) || 0);
+    const sum = values.reduce((a, b) => a + b, 0);
+
+    finalResults.innerHTML = "<h3>Resultat</h3>";
+
+    const factor = sum / 100;
+
+    values.forEach((value, i) => {
+        const adjustedPercent = value / factor;
+
+        let oddsText = "–";
+        if (adjustedPercent > 0) {
+            oddsText = ((1 / (adjustedPercent / 100)) * MARGIN).toFixed(2);
+        }
+
+        finalResults.innerHTML += `
+            <div class="result-row">
+                ${i + 1}. <strong>${horses[i].name}</strong>
+                (${horses[i].driver}) – Odds: <strong>${oddsText}</strong>
+            </div>
+        `;
+    });
+}
+
+function resetAll() {
+    inputs.forEach(i => i.value = 0);
+    summary.textContent = "Sum: 0 %";
+    finalResults.innerHTML = "";
+    warningBox.style.display = "none";
+    submitBtn.disabled = true;
+}
+</script>
+
+</body>
+</html>
+
+
+
+
